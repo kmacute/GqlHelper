@@ -1,0 +1,21 @@
+extend type Mutation {
+    create{{modelName}}(input: {{modelName}}Input! @spread): {{modelName}}! @create
+    update{{modelName}}(input: {{modelName}}Input! @spread): {{modelName}}! @update
+    delete{{modelName}}(id: ID! @whereKey): {{modelName}} @delete
+}
+
+extend type Query {
+    {{modelName}}(id: ID @eq): {{modelName}} @find
+    {{modelNamePlural}}(
+        # fieldName: String @like
+        orderBy: String @orderBy
+    ): [{{modelName}}!]! @paginate
+}
+
+type {{modelName}} {
+    {{typeFields}}
+}
+
+input {{modelName}}Input @validator {
+    {{typeInputFields}}
+}

@@ -1,0 +1,26 @@
+{
+    "name": "kmacute/gql-helper",
+    "description": "This will help the developer to easily create graphql types, query, validations and mutation in one command",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "kmacute\\GqlHelper\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "kevin",
+            "email": "kmacute@outlook.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {},
+    "extra": {
+        "laravel": {
+            "providers": [
+                "kmacute\\GqlHelper\\GqlHelperServiceProvider"
+            ]
+        }
+    }
+}

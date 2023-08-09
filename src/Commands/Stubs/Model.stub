@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Wildside\Userstamps\Userstamps;
+
+class {{modelName}} extends Model
+{
+    // SYSTEM REQUIREMENTS
+    use SoftDeletes;
+    use Userstamps;
+
+    // USER DEFINE
+    public function __construct($attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->setConnection(config('database.default'));
+    }
+
+    protected $table = '{{modelNamePluralLowerCase}}';
+    protected $primaryKey = 'id';
+    protected $fillable = [
+{{fillableFields}}
+    ];
+    public $incrementing = true;
+    public $timestamps = true;
+}
