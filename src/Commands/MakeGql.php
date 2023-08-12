@@ -4,10 +4,17 @@ namespace kmacute\GqlHelper\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use \Illuminate\Support\Str;
+use Illuminate\Support\Str;
+use kmacute\GqlHelper\Commands\Concerns\MakeGql\FieldTrait;
+use kmacute\GqlHelper\Commands\Concerns\MakeGql\FolderTrait;
+use kmacute\GqlHelper\Commands\Concerns\MakeGql\SchemaTrait;
+use kmacute\GqlHelper\Commands\Concerns\MakeGql\StubTrait;
+use kmacute\GqlHelper\Commands\Concerns\MakeGql\ValidationTrait;
 
 class MakeGql extends Command
 {
+    use SchemaTrait, FieldTrait, ValidationTrait, FolderTrait, StubTrait;
+
     protected $tableName;
     protected $modelName;
     protected $schema;
@@ -46,34 +53,49 @@ class MakeGql extends Command
         $this->schema = $this->getSchema();
 
         $this->createValidation();
-        $this->createType();
+        $this->createGraphql();
         if ($this->option('m')) {
             $this->createModel();
         }
     }
 
-
-
-    public function getSchema()
+    public function createValidation()
     {
-        $tableName = strtolower($this->argument('name'));
-        $database = env('DB_DATABASE', '');
-        return  DB::select("
-            SELECT  COLUMN_NAME,
-                    Column_Default,
-                    Column_Key,
-                    IS_NULLABLE,
-                    DATA_TYPE,
-                    COALESCE(Character_Maximum_Length,Numeric_Precision) AS Column_Size
-            FROM    INFORMATION_SCHEMA.Columns
-            WHERE   table_name = '$tableName'
-                    AND table_schema = '$database'
-        ");
+        $validationFields = $this->getValidationFields();
+
+        $requestTemplate = str_replace(
+            ['{{modelName}}', '{{fields}}',],
+            [$this->modelName, $validationFields],
+            $this->getStub('Validator')
+        );
+
+        $request_path = $this->createValidatorFolder();
+
+        if ($request_path == '') return; // path already exist, user did not want to create a new file
+
+        file_put_contents($request_path, $requestTemplate);
+
+        echo ("{$this->modelName}InputValidator.php created! \r\n");
     }
 
-    public function getStub($type)
+    private function createGraphql()
     {
-        return file_get_contents(__DIR__ .  "/Stubs/$type.stub");
+        $typeFields = $this->getTypeFields();
+        $typeInputFields = $this->getTypeInputFields();
+        $modelLowercase = Str::lower($this->modelName);
+        $modelPlural = Str::plural($this->modelName);
+
+        $template = str_replace(
+            ['{{modelName}}', '{{typeFields}}', '{{typeInputFields}}', '{{modelNamePlural}}',],
+            [$this->modelName, $typeFields, $typeInputFields, $modelPlural],
+            $this->getStub('Graphql')
+        );
+
+        $request_path = $this->createGraphFolder($modelLowercase);
+        if ($request_path == '') return;
+
+        file_put_contents($request_path, $template);
+        echo ("{$modelLowercase}.graphql created! \r\n");
     }
 
     public function createModel()
@@ -90,206 +112,32 @@ class MakeGql extends Command
                 $this->tableName,
                 $fillableFields
             ],
-            $this->getStub('Model')
+            $this->getStub($this->tableName == 'users' ? 'user.model' : 'Model')
         );
 
-        $request_path = app_path("Models/{$this->modelName}.php");
-        if (file_exists($request_path)) {
-            if (!$this->option('force')) {
-                echo ("{$this->modelName}.php Model already exists! \r\n");
-                return;
-            }
-        }
+        $request_path = $this->createModelFolder();
 
         file_put_contents($request_path, $modelTemplate);
         echo ("{$this->modelName}.php Model created! \r\n");
     }
 
-    private function getFillableFields()
+    public function createAuth()
     {
-        $list = $this->schema;
-        $ValidationFields = [];
-        for ($i = 0; $i < count($list); $i++) {
-            switch ($list[$i]->COLUMN_NAME) {
-                case 'id':
-                case 'created_by':
-                case 'updated_by':
-                case 'deleted_by':
-                case 'created_at':
-                case 'updated_at':
-                case 'deleted_at':
-                    break;
+        // create auth.graphql
+        $modelAuthTemplate = $this->getStub('auth.graphql');
+        $request_path = $this->createGraphFolder('auth');
+        if ($request_path == '') return;
 
-                default:
-                    $result = $list[$i]->COLUMN_NAME;
-                    $ValidationFields[] = "      '$result'";
-                    break;
-            }
-        }
-        return implode(",\r\n", $ValidationFields);
-    }
+        file_put_contents($request_path, $modelAuthTemplate);
+        echo ("auth.graphql has been created! \r\n");
 
-    public function createValidation()
-    {
-        $validationFields = $this->getValidationFields();
-        $requestTemplate = str_replace(
-            ['{{modelName}}', '{{fields}}',],
-            [$this->modelName, $validationFields],
-            $this->getStub('Validator')
-        );
-
-        if (!file_exists($path = app_path('/GraphQL')))
-            mkdir($path, 0777, true);
-
-        if (!file_exists($path = app_path('/GraphQL/Validators')))
-            mkdir($path, 0777, true);
-
-        $request_path = app_path("/GraphQL/Validators/{$this->modelName}InputValidator.php");
-        if (file_exists($request_path)) {
-            if (!$this->option('force')) {
-                echo ("{$this->modelName}InputValidator.php already exists! \r\n");
-                return;
-            }
-        }
-        file_put_contents($request_path, $requestTemplate);
-        echo ("{$this->modelName}InputValidator.php created! \r\n");
-    }
-
-    public function getValidationFields()
-    {
-
-        $ValidationFields = [];
-        for ($i = 0; $i < count($this->schema); $i++) {
-            switch ($this->schema[$i]->COLUMN_NAME) {
-                case 'id':
-                case 'created_by':
-                case 'updated_by':
-                case 'deleted_by':
-                case 'created_at':
-                case 'updated_at':
-                case 'deleted_at':
-                    break;
-
-                default:
-                    $result = $this->getValidationField($this->schema[$i]);
-                    $ValidationFields[] = "            $result";
-                    break;
-            }
-        }
-
-        return implode("\r\n", $ValidationFields);
-    }
-
-    private function getValidationField($list)
-    {
-        $DATA_TYPE = '';
-        $IS_NULLABLE = '';
-        $Column_Size = '';
-
-        if ($list->IS_NULLABLE) {
-            $IS_NULLABLE = ($list->IS_NULLABLE == 'YES' ? "'nullable'," : "'required',");
-        }
-
-        switch ($list->DATA_TYPE) {
-            case 'varchar':
-            case 'char':
-                $DATA_TYPE = "";
-                $Column_Size = "'max:$list->Column_Size'";
-                break;
-
-            case 'decimal':
-            case 'int':
-                $DATA_TYPE = "'numeric',";
-                $Column_Size = "'digits_between:0,$list->Column_Size'";
-                break;
-
-            case 'tinyint':
-                $DATA_TYPE = "'boolean',";
-                break;
-
-            case 'datetime':
-            case 'date':
-                $DATA_TYPE = '';
-                break;
-        }
-
-        return "'" . $list->COLUMN_NAME . "' => [" . $IS_NULLABLE . $DATA_TYPE . $Column_Size . '],';
-    }
-
-    private function createType()
-    {
-        if (!file_exists($path = base_path('/graphql')))
-            mkdir($path, 0777, true);
-
-        $typeFields = $this->getTypeFields();
-        $typeInputFields = $this->getTypeInputFields();
-        $modelLowercase = Str::lower($this->modelName);
-        $modelPlural = Str::plural($this->modelName);
-
-        $template = str_replace(
-            ['{{modelName}}', '{{typeFields}}', '{{typeInputFields}}', '{{modelNamePlural}}',],
-            [$this->modelName, $typeFields, $typeInputFields, $modelPlural],
-            $this->getStub('Graphql')
-        );
+        // create Login function
+        $modelAuthTemplate = $this->getStub('LoginMutation');
+        $request_path = $this->createMutationFolder('Login');
+        if ($request_path == '') return;
 
 
-        $request_path = base_path("/graphql/{$modelLowercase}.graphql");
-        if (file_exists($request_path)) {
-            if (!$this->option('force')) {
-                echo ("{$modelLowercase}.graphql already exists! \r\n");
-                return;
-            }
-        }
-
-        file_put_contents($request_path, $template);
-        echo ("{$modelLowercase}.graphql created! \r\n");
-    }
-
-    private function getTypeFields()
-    {
-        $fields = [];
-        for ($i = 0; $i < count($this->schema); $i++) {
-            switch ($this->schema[$i]->COLUMN_NAME) {
-                case 'id':
-                    $fields[] = "id: ID";
-                    break;
-
-                default:
-                    $fieldName = $this->schema[$i]->COLUMN_NAME;
-                    $fieldType = in_array($this->schema[$i]->DATA_TYPE, ["decimal", "int"]) ? 'Int' : 'String';
-                    $fields[] = "$fieldName: $fieldType";
-                    break;
-            }
-        }
-
-        return implode("\r\n    ", $fields);
-    }
-
-    private function getTypeInputFields()
-    {
-        $fields = [];
-        for ($i = 0; $i < count($this->schema); $i++) {
-            switch ($this->schema[$i]->COLUMN_NAME) {
-                case 'id':
-                    $fields[] = "id: Int";
-                    break;
-
-                case 'created_by':
-                case 'updated_by':
-                case 'deleted_by':
-                case 'created_at':
-                case 'updated_at':
-                case 'deleted_at':
-                    break;
-
-                default:
-                    $fieldName = $this->schema[$i]->COLUMN_NAME;
-                    $fieldType = in_array($this->schema[$i]->DATA_TYPE, ["decimal", "int"]) ? 'Int' : 'String';
-                    $fields[] = "$fieldName: $fieldType";
-                    break;
-            }
-        }
-
-        return implode("\r\n    ", $fields);
+        file_put_contents($request_path, $modelAuthTemplate);
+        echo ("Login Mutation has been created! \r\n");
     }
 }

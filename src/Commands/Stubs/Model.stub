@@ -12,13 +12,6 @@ class {{modelName}} extends Model
     use SoftDeletes;
     use Userstamps;
 
-    // USER DEFINE
-    public function __construct($attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->setConnection(config('database.default'));
-    }
-
     protected $table = '{{modelNamePluralLowerCase}}';
     protected $primaryKey = 'id';
     protected $fillable = [

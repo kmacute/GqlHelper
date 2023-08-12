@@ -15,7 +15,10 @@
 		}
 	],
 	"minimum-stability": "stable",
-	"require": {},
+	"require": {
+		"nuwave/lighthouse": "^6.16",
+		"wildside/userstamps": "^2.3"
+	},
 	"extra": {
 		"laravel": {
 			"providers": [

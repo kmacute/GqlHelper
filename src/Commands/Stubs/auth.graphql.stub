@@ -1,0 +1,16 @@
+extend type Mutation {
+    changePassword(
+        id: ID!
+        password: String! @rules(apply: ["required", "comfirmed"])
+        password_confirm: String!
+    ): User @update
+    resetPassword(id: ID, password: String @hash): User @update
+    login(
+        username: String! @rules(apply: ["required"])
+        password: String! @rules(apply: ["required"])
+    ): String!
+}
+
+extend type Query @guard {
+    me: User! @auth
+}

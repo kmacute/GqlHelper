@@ -4,6 +4,7 @@ namespace kmacute\GqlHelper;
 
 use Illuminate\Support\ServiceProvider;
 use kmacute\GqlHelper\Commands\MakeGql;
+use kmacute\GqlHelper\Commands\MakeGqlAuth;
 
 class GqlHelperServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,7 @@ class GqlHelperServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 MakeGql::class,
+                MakeGqlAuth::class,
             ]);
         }
     }
